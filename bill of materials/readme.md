@@ -16,3 +16,7 @@
 |         11|LED|indicatie led's|Recup|0.10|      |         |
 |         12| Cinch Banden|Battery klittenband|Nieuw|1,28|1|1,28|
 |         13|Zwart Acryl Plaat|Chassisplaat|Nieuw|2,93|1|2,93|
+|         14|Soldeertin|Soldeertin|Recup|5,59|1|/|
+|         15|    |    |    |    |  |    |
+|         16|    |    |    |    |  |    |
+|         17|    |    |    |    |  |    |
