@@ -1,7 +1,5 @@
-/* ============================================================
-   Line-follower firmware voor Arduino Nano + QTR-8A + TB6612FNG
-   Gebaseerd op jouw pinmap en eisen (SerialCommand + EEPROMAnything)
-   ============================================================ */
+/* Line-follower firmware voor Arduino Nano + QTR-8A + TB6612FNG
+   Gebaseerd op jouw pinmap en eisen (SerialCommand + EEPROMAnything) */
 
 #include "SerialCommand.h"
 #include "EEPROMAnything.h"
