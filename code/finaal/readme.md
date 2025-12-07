@@ -1,8 +1,11 @@
-/* Line-follower firmware voor Arduino Nano + QTR-8A + TB6612FNG
-   Gebaseerd op jouw pinmap en eisen (SerialCommand + EEPROMAnything) */
+/* ============================================================
+   Line-follower Syntheseproject
+   ============================================================ */
 
 #include "SerialCommand.h"
 #include "EEPROMAnything.h"
+#include <SoftwareSerial.h>
+
 
 #define SerialPort Serial
 #define Baudrate 115200
@@ -26,7 +29,12 @@ bool running = true;  // robot start direct
 
 
 // SerialCommand object
-SerialCommand sCmd(SerialPort);
+SoftwareSerial BT(2, 3); // RX, TX HC-05
+SerialCommand sCmdUSB(SerialPort); // voor USB monitor
+SerialCommand sCmdBT(BT);
+
+SerialCommand* activeCmd = nullptr;
+
 
 // Timing
 unsigned long previous = 0;
@@ -52,12 +60,12 @@ struct param_t {
 
 // Defaults (ingevuld als EEPROM leeg / eerste keer)
 void setDefaults() {
-  params.cycleTime = 5000UL; // 10 ms default
-  params.baseSpeed = 100;
+  params.cycleTime = 10000UL; // 10 ms default
+  params.baseSpeed = 90;
   params.maxSpeed = 175;
-  params.Kp = 3.0f;
+  params.Kp = 1.20f;
   params.Ki = 0.0f;
-  params.Kd = 0.45f;
+  params.Kd = 0.40f;
   params.invertLeft = false;
   params.invertRight = false;
   params.sensorInvert = false;
@@ -79,23 +87,37 @@ void setup()
 {
   // Serial + commands
   SerialPort.begin(Baudrate);
+  BT.begin(9600);           // HC-05
   // voeg commando's toe
-  sCmd.addCommand("set", onSet);
-  sCmd.addCommand("calibrate", onCalibrate);
-  sCmd.addCommand("debug", onDebug);
-  sCmd.addCommand("status", onStatus);
-  sCmd.addCommand("motortest", onMotorTest);
-  sCmd.addCommand("sensortest", onSensorTest);
-  sCmd.addCommand("help", onHelp);
-  sCmd.addCommand("start", onStart);
-  sCmd.addCommand("stop", onStop);
-  sCmd.setDefaultHandler(onUnknownCommand);
+  sCmdUSB.addCommand("set", onSet);
+  sCmdUSB.addCommand("calibrate", onCalibrate);
+  sCmdUSB.addCommand("debug", onDebug);
+  sCmdUSB.addCommand("status", onStatus);
+  sCmdUSB.addCommand("motortest", onMotorTest);
+  sCmdUSB.addCommand("sensortest", onSensorTest);
+  sCmdUSB.addCommand("help", onHelp);
+  sCmdUSB.addCommand("start", onStart);
+  sCmdUSB.addCommand("stop", onStop);
+  sCmdUSB.setDefaultHandler(onUnknownCommand);
+
+  sCmdBT.addCommand("set", onSet);
+  sCmdBT.addCommand("calibrate", onCalibrate);
+  sCmdBT.addCommand("debug", onDebug);
+  sCmdBT.addCommand("status", onStatus);
+  sCmdBT.addCommand("motortest", onMotorTest);
+  sCmdBT.addCommand("sensortest", onSensorTest);
+  sCmdBT.addCommand("help", onHelp);
+  sCmdBT.addCommand("start", onStart);
+  sCmdBT.addCommand("stop", onStop);
+  sCmdBT.setDefaultHandler(onUnknownCommand);
+
 
   // laadt params uit EEPROM of zet defaults als EEPROM corrupt / leeg
   // probeer lezen - geen foutafhandeling in EEPROMAnything, dus we controleren sensorMin waarden na lezen
   // load -> l aad params uit EEPROM (en overschrijf runtime)
   EEPROM_readAnything(0, params);
   SerialPort.println(F("Parameters loaded from EEPROM."));
+  BT.println(F("Parameters loaded from EEPROM."));
 
   bool needDefaults = false;
   // heuristiek: als cycleTime 0 of sensorMin allemaal 1023 (nog nooit gekalibreerd), dan default zetten
@@ -125,6 +147,7 @@ void setup()
   digitalWrite(STBY, HIGH); // activeer driver
 
   SerialPort.println(F("ready"));
+  BT.println(F("ready"));
   onHelp(); // toon beschikbare commando's bij opstart
   lastTime = micros();
 
@@ -134,7 +157,18 @@ void setup()
 void loop() 
 {
   // verwerk inkomende serial commando's (niet in de cyclische code)
-  sCmd.readSerial();
+  if (SerialPort.available()) 
+  {
+    activeCmd = &sCmdUSB;
+    sCmdUSB.readSerial();
+  }
+
+  if (BT.available()) 
+  {
+    activeCmd = &sCmdBT;
+    sCmdBT.readSerial();
+  }
+
   unsigned long current = micros();
 
   if (current - previous >= params.cycleTime) 
@@ -142,7 +176,8 @@ void loop()
     previous = current;
     unsigned long start = micros();
 
-    if (running) {
+    if (running) 
+    {
       // cyclische code - houd kort en zonder Serial prints
       stepCycle();
     }
@@ -220,15 +255,18 @@ void readCalibratedSensors() {
   }
 }
 
-long getWeightedPosition() {
+long getWeightedPosition() 
+{
   long numerator = 0;
   long denominator = 0;
-  for (int i = 0; i < NUM_SENSORS; i++) {
+  for (int i = 0; i < NUM_SENSORS; i++) 
+  {
     int v = sensorValues[i];
     numerator += (long)v * (long)(i * 1000);
     denominator += v;
   }
-  if (denominator == 0) {
+  if (denominator == 0) 
+  {
     // lijn niet gevonden: fallback naar kant gebaseerd op lastError
     if (lastError >= 0) return (NUM_SENSORS - 1) * 1000;
     else return 0;
@@ -238,32 +276,44 @@ long getWeightedPosition() {
 
 // ---------------- motor functies ----------------
 // snelheid: -255 .. +255
-void setMotorA(int speed) { // motor A = LINKS
-  if (speed > 0) {
+void setMotorA(int speed) 
+{ // motor A = LINKS
+  if (speed > 0) 
+  {
     digitalWrite(AIN1, HIGH);
     digitalWrite(AIN2, LOW);
     analogWrite(PWMA, constrain(speed, 0, 255));
-  } else if (speed < 0) {
+  } 
+  else if (speed < 0) 
+  {
     digitalWrite(AIN1, LOW);
     digitalWrite(AIN2, HIGH);
     analogWrite(PWMA, constrain(-speed, 0, 255));
-  } else {
+  } 
+  else 
+  {
     digitalWrite(AIN1, LOW);
     digitalWrite(AIN2, LOW);
     analogWrite(PWMA, 0);
   }
 }
 
-void setMotorB(int speed) { // motor B = RECHTS
-  if (speed > 0) {
+void setMotorB(int speed) 
+{ // motor B = RECHTS
+  if (speed > 0) 
+  {
     digitalWrite(BIN1, HIGH);
     digitalWrite(BIN2, LOW);
     analogWrite(PWMB, constrain(speed, 0, 255));
-  } else if (speed < 0) {
+  } 
+  else if (speed < 0) 
+  {
     digitalWrite(BIN1, LOW);
     digitalWrite(BIN2, HIGH);
     analogWrite(PWMB, constrain(-speed, 0, 255));
-  } else {
+  } 
+  else 
+  {
     digitalWrite(BIN1, LOW);
     digitalWrite(BIN2, LOW);
     analogWrite(PWMB, 0);
@@ -275,10 +325,14 @@ void setMotorB(int speed) { // motor B = RECHTS
 // set <param> <value>
 // ondersteunde params: kp, ki, kd, base, max, cycle, invertLeft, invertRight, sensorInvert, debug
 void onSet() {
-  char* p = sCmd.next();
-  char* v = sCmd.next();
+  if (!activeCmd) return;
+
+  char* p = activeCmd->next();
+  char* v = activeCmd->next();
+
   if (!p || !v) {
-    SerialPort.println(F("set <param> <value> -- typ: help"));
+    SerialPort.println(F("set <param> <value>"));
+    BT.println(F("set <param> <value>"));
     return;
   }
 
@@ -314,13 +368,16 @@ void onSet() {
 // calibrate [ms]
 // Kalibreer sensorMin/max door samples te nemen over opgegeven tijd (ms), default 2000ms
 void onCalibrate() {
-  char* arg = sCmd.next();
+  char* arg = activeCmd->next();
   unsigned long ms = 2000;
   if (arg) ms = atol(arg);
 
   SerialPort.print(F("Starting calibration for "));
   SerialPort.print(ms);
   SerialPort.println(F(" ms - move robot over line / surface"));
+  BT.print(F("Starting calibration for "));
+  BT.print(ms);
+  BT.println(F(" ms - move robot over line / surface"));
 
   unsigned long start = millis();
   // init
@@ -350,6 +407,10 @@ void onCalibrate() {
       SerialPort.print(F("S")); SerialPort.print(i);
       SerialPort.print(F(" min=")); SerialPort.print(params.sensorMin[i]);
       SerialPort.print(F(" max=")); SerialPort.println(params.sensorMax[i]);
+
+      BT.print(F("S")); SerialPort.print(i);
+      BT.print(F(" min=")); SerialPort.print(params.sensorMin[i]);
+      BT.print(F(" max=")); SerialPort.println(params.sensorMax[i]);
     }
   }
 }
@@ -368,10 +429,18 @@ void onDebug() {
   SerialPort.print(F("Kp: ")); SerialPort.println(params.Kp, 6);
   SerialPort.print(F("Ki: ")); SerialPort.println(params.Ki, 6);
   SerialPort.print(F("Kd: ")); SerialPort.println(params.Kd, 6);
-
   SerialPort.print(F("invertLeft: ")); SerialPort.println(params.invertLeft ? "on":"off");
   SerialPort.print(F("invertRight: ")); SerialPort.println(params.invertRight ? "on":"off");
   SerialPort.print(F("sensorInvert: ")); SerialPort.println(params.sensorInvert ? "on":"off");
+
+  BT.print(F("baseSpeed: ")); BT.println(params.baseSpeed);
+  BT.print(F("maxSpeed: ")); BT.println(params.maxSpeed);
+  BT.print(F("Kp: ")); BT.println(params.Kp, 6);
+  BT.print(F("Ki: ")); BT.println(params.Ki, 6);
+  BT.print(F("Kd: ")); BT.println(params.Kd, 6);
+  BT.print(F("invertLeft: ")); BT.println(params.invertLeft ? "on":"off");
+  BT.print(F("invertRight: ")); BT.println(params.invertRight ? "on":"off");
+  BT.print(F("sensorInvert: ")); BT.println(params.sensorInvert ? "on":"off");
 }
 
 // status -> print huidige status en laatste sensorwaarden
@@ -387,12 +456,18 @@ void onStatus() {
 }
 
 // motortest <side:left|right|both> <speed:-255..255> <duration_ms>
-void onMotorTest() {
-  char* side = sCmd.next();
-  char* sspd = sCmd.next();
-  char* sdur = sCmd.next();
-  if (!side || !sspd) {
+void onMotorTest() 
+{
+  if (!activeCmd) return;  // extra safety
+
+  char* side = activeCmd->next();   
+  char* sspd = activeCmd->next();   
+  char* sdur = activeCmd->next(); 
+
+  if (!side || !sspd) 
+  {
     SerialPort.println(F("motortest <left|right|both> <speed> [duration_ms]"));
+    BT.println(F("motortest <left|right|both> <speed> [duration_ms]"));
     return;
   }
   int speed = atoi(sspd);
@@ -400,10 +475,13 @@ void onMotorTest() {
   if (sdur) duration = atol(sdur);
 
   SerialPort.println(F("Starting motor test..."));
-  if (strcmp(side,"left")==0 || strcmp(side,"both")==0) {
+  BT.println(F("Starting motor test..."));
+  if (strcmp(side,"left")==0 || strcmp(side,"both")==0) 
+  {
     setMotorA(params.invertLeft ? -speed : speed);
   }
-  if (strcmp(side,"right")==0 || strcmp(side,"both")==0) {
+  if (strcmp(side,"right")==0 || strcmp(side,"both")==0) 
+  {
     setMotorB(params.invertRight ? -speed : speed);
   }
   delay(duration);
@@ -411,6 +489,7 @@ void onMotorTest() {
   setMotorA(0);
   setMotorB(0);
   SerialPort.println(F("Motor test finished."));
+  BT.println(F("Motor test finished."));
 }
 
 // sensortest -> print ruwe analoge waarden en gekalibreerde waarden
@@ -433,7 +512,8 @@ void onSensorTest() {
 
 
 // help -> print commands
-void onHelp() {
+void onHelp() 
+{
   SerialPort.println(F("Commands:"));
   SerialPort.println(F("  set <param> <value>    (kp,ki,kd,base,max,cycle,invertLeft,on/off,invertRight,on/off,sensorInvert,on/off)"));
   SerialPort.println(F("  calibrate [ms]         (kalibratie sensoren, default 2000ms)"));
@@ -446,6 +526,19 @@ void onHelp() {
   SerialPort.println(F("  help                   (this list)"));
   SerialPort.println(F("  start                  (starts the lineFollower)"));
   SerialPort.println(F("  stop                   (stops de lineFollower)"));
+
+  BT.println(F("Commands:"));
+  BT.println(F("  set <param> <value>    (kp,ki,kd,base,max,cycle,invertLeft,on/off,invertRight,on/off,sensorInvert,on/off)"));
+  BT.println(F("  calibrate [ms]         (kalibratie sensoren, default 2000ms)"));
+  BT.println(F("  debug                  (print cycle and calculation times + PID)"));
+  BT.println(F("  status                 (status + sensor values)"));
+  BT.println(F("  save                   (save params to EEPROM)"));
+  BT.println(F("  load                   (load params from EEPROM)"));
+  BT.println(F("  motortest <left|right|both> <speed> [ms]"));
+  BT.println(F("  sensortest             (print raw and calibrated sensor values)"));
+  BT.println(F("  help                   (this list)"));
+  BT.println(F("  start                  (starts the lineFollower)"));
+  BT.println(F("  stop                   (stops de lineFollower)"));
 }
 
 // default handler
@@ -454,13 +547,20 @@ void onUnknownCommand(char *command)
   SerialPort.print(F("unknown command: \""));
   SerialPort.print(command);
   SerialPort.println(F("\""));
+  BT.print(F("unknown command: \""));
+  BT.print(command);
+  BT.println(F("\""));
 
   SerialPort.print("ASCII: ");
+  BT.print("ASCII: ");
   for (int i = 0; command[i]; i++) {
     SerialPort.print((int)command[i]);
+    BT.print((int)command[i]);
     SerialPort.print(" ");
+    BT.print(" ");
   }
   SerialPort.println();
+  BT.println();
 }
 
 
@@ -468,6 +568,7 @@ void onUnknownCommand(char *command)
 void onStart() {
   running = true;
   SerialPort.println("Robot started");
+  BT.println("Robot started");
 }
 
 
@@ -477,6 +578,6 @@ void onStop() {
   setMotorA(0);
   setMotorB(0);
   SerialPort.println("Robot stopped");
+  BT.println("Robot stopped");
 }
-
 
