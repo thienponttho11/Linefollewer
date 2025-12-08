@@ -49,8 +49,8 @@ Commands worden automatisch via beide lijnen verwerkt.
 - Zoek naar HC-05
 - Pair met PIN 1234
 
-3. Open de app Serial Bluetooth Terminal
+2. Open de app Serial Bluetooth Terminal
 - Verbind met HC-05
 - Terminal opent automatisch
 
-5. Nu test de duplex communicatie met commando's
+3. Nu test de duplex communicatie met commando's
