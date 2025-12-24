@@ -2,7 +2,7 @@
 
 lege repository die je als template kan gebruiken om een eigen repository te starten voor uw linefollower project
 
-![A description of my image](images/empty.png)
+![Foto_linefollower](https://github.com/user-attachments/assets/f8ef2bc6-e6b3-4724-8cff-e8a70011ad28)
 
   
 ## specifications
