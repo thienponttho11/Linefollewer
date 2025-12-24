@@ -49,4 +49,4 @@ Voer het calibrate-commando uit volgens de gebruiksaanwijzing.
 Start de robot met het start-commando.
 
 ### stap 16
-Test de robot op een lijntraject en stel parameters af met set-commando’s indien nodig.
+Test de robot op een parcour en stel de parameters af met set-commando’s indien nodig.
