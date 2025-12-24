@@ -1,27 +1,25 @@
 # LineFollower
 
-lege repository die je als template kan gebruiken om een eigen repository te starten voor uw linefollower project
-
 ![Foto_linefollower](https://github.com/user-attachments/assets/f8ef2bc6-e6b3-4724-8cff-e8a70011ad28)
 
   
 ## specifications
 
-microcontroller:
+microcontroller: Arduino Nano V3.0 CH340G Board met Atmega328P-AU
 
-motors: 
+motors: GA12-N20 DC 3V reductiemotor 500tpm 1:50
 
-h-bridge:
+h-bridge: iHaospace TB6612FNG
 
-sensors:
+sensors: QTR-8A
 
-batteries:
+batteries: 2S-lipo 3000mAh 15C
 
-wireless communication:
+wireless communication: HC-05 ( Bluetooth )
 
-distance sensor - motors:
+distance sensor - motors: 94mm
 
-weight:
+weight: 245g
 
-speed: 
+speed: +-11sec/ronde
 
