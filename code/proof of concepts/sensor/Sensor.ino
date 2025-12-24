@@ -4,9 +4,10 @@ const uint8_t sensorPins[NUM_SENSORS] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
 // sensortest -> print ruwe analoge waarden en gekalibreerde waarden
 void onSensorTest() 
-  {
+{
   SerialPort.println(F("Sensor raw / calibrated:"));
-  for (int i=0;i<NUM_SENSORS;i++){
+  for (int i=0;i<NUM_SENSORS;i++)
+  {
     int raw = analogRead(sensorPins[i]);
     int minv = params.sensorMin[i];
     int maxv = params.sensorMax[i];
